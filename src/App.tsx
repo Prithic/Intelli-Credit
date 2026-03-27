@@ -20,7 +20,16 @@ import {
   Building2,
   Scale,
   Landmark,
-  BadgeAlert
+  BadgeAlert,
+  Globe,
+  FileSearch,
+  Briefcase,
+  Download,
+  FileDown,
+  History,
+  Fingerprint,
+  Gavel,
+  ShieldQuestion
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -36,12 +45,121 @@ import {
 import { cn } from './lib/utils';
 import { CreditAnalysis } from './types';
 import { GoogleGenAI, Type } from '@google/genai';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
+import Markdown from 'react-markdown';
+
+const searchCasesDeclaration = {
+  name: "search_cases",
+  description: "Search for legal cases and disputes involving a specific company or individual on the eCourts India portal.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      query: {
+        type: Type.STRING,
+        description: "The name of the company or individual to search for.",
+      },
+    },
+    required: ["query"],
+  },
+};
+
+const getMcaInfoDeclaration = {
+  name: "get_mca_info",
+  description: "Retrieve information from the Ministry of Corporate Affairs (MCA) about a company.",
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      companyName: {
+        type: Type.STRING,
+        description: "The name of the company to search for.",
+      },
+    },
+    required: ["companyName"],
+  },
+};
+
+const callMcpTool = async (toolName: string, args: any) => {
+  const apiKey = import.meta.env.VITE_ECOURTS_API_KEY;
+  if (!apiKey) {
+    console.warn("VITE_ECOURTS_API_KEY is not set.");
+    return { error: "eCourts API key not configured" };
+  }
+  
+  try {
+    // Simulate the MCP server response since the actual eCourts MCP server 
+    // is not publicly accessible from the browser (CORS/fictional endpoint).
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    if (toolName === "search_cases") {
+      return {
+        cases: [
+          {
+            caseNumber: "COM/2023/001",
+            court: "High Court",
+            status: "Pending",
+            summary: `Commercial dispute involving ${args.query || 'the entity'}.`
+          }
+        ]
+      };
+    }
+    
+    return { error: "Unknown tool" };
+  } catch (error) {
+    console.error("Error calling MCP tool:", error);
+    return { error: "eCourts API key not configured or endpoint unreachable" };
+  }
+};
 
 export default function App() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<CreditAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const downloadPDF = async () => {
+    const element = document.getElementById('cam-report');
+    if (!element) return;
+    
+    try {
+      setIsExporting(true);
+      const imgData = await toPng(element, {
+        cacheBust: true,
+        backgroundColor: '#0a0a0a',
+        pixelRatio: 2
+      });
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      pdf.save('credit-appraisal-memo.pdf');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -98,34 +216,71 @@ export default function App() {
       const model = "gemini-3-flash-preview";
       const extractionPrompt = `
         Objective:
-        You are an AI-powered Credit Appraisal & Verification System that performs independent data verification before risk analysis, replicating real-world banking due diligence.
+        You are a Senior Credit Officer at a leading Indian Bank. Your task is to perform a production-grade Corporate Credit Appraisal, replicating a professional bank workflow.
         
-        1. Data Extraction Layer:
-        Extract company profile information and financial figures from the provided document. If a figure is not found, estimate it based on context or return 0. If text info is not found, return "Unknown".
+        1. Data Ingestion & Extraction:
+        Extract and synthesize data from the provided document into four distinct pillars:
+        - Structured Data: Financial figures (revenue, debt, cashflow, profit, assets, liabilities).
+        - Unstructured Insights: Insights from Annual Reports, Board minutes, Rating reports, Shareholding patterns.
+        - External Intelligence: Use 'get_mca_info' for MCA status. Use Google Search for News, and Sector trends. Use 'search_cases' for Legal disputes.
+        - Primary Insights: Site visit observations, Management interviews.
         
-        2. Data Verification & Trust Engine (SIMULATED):
-        For every extracted data point, SIMULATE independent verification using external authoritative sources based on the document's realism, consistency, and formatting.
-        - Identity Verification (KYC): Validate PAN, Aadhaar (simulate). Match name, DOB.
-        - Business Verification: Verify GST registration & filings, MCA records (simulate).
-        - Legal Verification: Query eCourts India (simulate). Perform fuzzy + contextual matching.
-        - Financial Validation: Cross-check financial statements with GST data.
-        - Banking Data Integrity Check: Detect tampering or anomalies in bank statements.
-        - Credit Bureau Validation: Validate credit history using TransUnion CIBIL (simulate).
-        - Collateral Verification: Validate ownership & encumbrances.
+        2. Mandatory Verification & Trust Engine:
+        Independently validate every data point. Assign a status (Verified/Unverified/Mismatch) and confidence score.
+        - Identity (PAN/Aadhaar): Match extracted names with official records (simulate).
+        - Business (GST/MCA): Verify registration and filing status using 'get_mca_info'.
+        - Legal (eCourts): Use \`search_cases\` for contextual matching.
+        - Financial Consistency: Cross-check GST vs Bank vs Declared Revenue. Detect inflation or circular trading.
+        - Banking Integrity: Detect tampering or anomalies in statements.
+        - Credit History (CIBIL): Validate past repayment behavior (simulate).
+        - Collateral: Validate ownership and encumbrances (simulate).
         
-        3. Risk Analysis Layer:
-        Perform multi-dimensional risk analysis (Financial, Legal, Behavioral, Industry, Management) ONLY AFTER verification.
+        3. Multi-Dimensional Risk Analysis (The Five Cs of Credit):
+        Analyze the borrower across five dimensions:
+        - Character: Integrity, reputation, promoter background, past ventures.
+        - Capacity: Ability to repay, cashflow stability, debt service coverage.
+        - Capital: Promoter's skin in the game, net worth, leverage.
+        - Collateral: Quality, value, and enforceability of security.
+        - Conditions: Industry trends, regulatory environment, economic factors.
+        For each C, provide a score (0-100), key insights, red flags, and positive signals.
         
-        Return a JSON object matching the provided schema exactly. Include:
-        - companyInfo: name, establishedYear, industry, registrationNumber, employees
-        - structuredData: revenue, debt, cashflow, profit, assets, liabilities
-        - verificationLayer: Array of verification points (category, dataPoint, status: 'Verified' | 'Unverified' | 'Mismatch', confidenceScore: 0-100, source, notes)
-        - riskAnalysisDetails: financialRisk, legalRisk, behavioralRisk, industryRisk, managementRisk
-        - missingData: Array of missing critical data points
-        - requiredDocs: Array of additional documents required to proceed
+        4. Decision Engine:
+        Output a final recommendation (Approve/Review/Reject), suggested loan amount, interest rate, and risk grade (e.g., AAA, BBB+, C). Provide detailed reasoning and confidence level.
+        
+        5. Credit Appraisal Memo (CAM) Generation:
+        Generate a professional, bank-standard CAM report in a formal tone. The CAM report MUST be formatted as a clean, structured Markdown string that can be directly converted into a Word/PDF document.
+        Use headings, bullet points, and sections clearly.
+        Include the following structure based on the Five Cs of Credit:
+        - 1. Executive Summary: Brief overview, loan purpose, final recommendation, key reasons.
+        - 2. Company Profile: Name, Industry, Incorporation Year, Business model, Operational status.
+        - 3. Character (Credibility & Intent): Promoter credibility, credit history, legal standing, behavioral risks.
+        - 4. Capacity (Repayment Ability): Revenue/profit trends, cash flow, debt servicing, key ratios.
+        - 5. Capital (Financial Strength): Net worth, assets vs liabilities, debt-to-equity.
+        - 6. Collateral (Security): Available collateral, coverage adequacy. If not available, state "Unsecured Exposure".
+        - 7. Conditions (External & Industry Factors): Industry outlook, market risks, economic conditions.
+        - 8. Risk Analysis Summary: List key risks with evidence, contradictions, categorize risks (Critical/Moderate/Minor).
+        - 9. Verification Summary: Present a table-like structured summary (Check performed, Source, Status, Key findings).
+        - 10. Final Recommendation: Decision (APPROVE/REVIEW/REJECT), justification based on risk score, verification integrity, financial strength.
+        
+        Style Guidelines:
+        - Use formal banking language.
+        - Be precise and evidence-based.
+        - Do NOT use casual tone.
+        - Do NOT hallucinate missing data. If missing, state "Not available in provided documents".
+        - Every major claim must be backed by data or verification.
+        - Highlight any inconsistencies clearly.
+        - Prioritize risk clarity over description.
+        - Think like a banker approving a multi-crore loan.
+        
+        Return a JSON object matching the provided schema.
       `;
 
       const config = {
+        tools: [
+          { googleSearch: {} },
+          { functionDeclarations: [searchCasesDeclaration, getMcaInfoDeclaration] }
+        ],
+        toolConfig: { includeServerSideToolInvocations: true },
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -153,6 +308,32 @@ export default function App() {
               },
               required: ["revenue", "debt", "cashflow", "profit", "assets", "liabilities"],
             },
+            unstructuredInsights: {
+              type: Type.OBJECT,
+              properties: {
+                boardMeetingNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                ratingAgencyReports: { type: Type.STRING },
+                shareholdingPattern: { type: Type.STRING },
+              },
+              required: ["boardMeetingNotes", "ratingAgencyReports", "shareholdingPattern"],
+            },
+            externalIntelligence: {
+              type: Type.OBJECT,
+              properties: {
+                mcaStatus: { type: Type.STRING },
+                legalDisputes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                newsSectorTrends: { type: Type.ARRAY, items: { type: Type.STRING } },
+              },
+              required: ["mcaStatus", "legalDisputes", "newsSectorTrends"],
+            },
+            primaryInsights: {
+              type: Type.OBJECT,
+              properties: {
+                siteVisitObservations: { type: Type.ARRAY, items: { type: Type.STRING } },
+                managementInterviews: { type: Type.ARRAY, items: { type: Type.STRING } },
+              },
+              required: ["siteVisitObservations", "managementInterviews"],
+            },
             verificationLayer: {
               type: Type.ARRAY,
               items: {
@@ -179,6 +360,89 @@ export default function App() {
               },
               required: ["financialRisk", "legalRisk", "behavioralRisk", "industryRisk", "managementRisk"],
             },
+            fiveCs: {
+              type: Type.OBJECT,
+              properties: {
+                character: {
+                  type: Type.OBJECT,
+                  properties: {
+                    score: { type: Type.NUMBER },
+                    insights: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    positiveSignals: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ["score", "insights", "redFlags", "positiveSignals"],
+                },
+                capacity: {
+                  type: Type.OBJECT,
+                  properties: {
+                    score: { type: Type.NUMBER },
+                    insights: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    positiveSignals: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ["score", "insights", "redFlags", "positiveSignals"],
+                },
+                capital: {
+                  type: Type.OBJECT,
+                  properties: {
+                    score: { type: Type.NUMBER },
+                    insights: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    positiveSignals: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ["score", "insights", "redFlags", "positiveSignals"],
+                },
+                collateral: {
+                  type: Type.OBJECT,
+                  properties: {
+                    score: { type: Type.NUMBER },
+                    insights: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    positiveSignals: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ["score", "insights", "redFlags", "positiveSignals"],
+                },
+                conditions: {
+                  type: Type.OBJECT,
+                  properties: {
+                    score: { type: Type.NUMBER },
+                    insights: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    positiveSignals: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ["score", "insights", "redFlags", "positiveSignals"],
+                },
+              },
+              required: ["character", "capacity", "capital", "collateral", "conditions"],
+            },
+            camReport: {
+              type: Type.OBJECT,
+              properties: {
+                executiveSummary: { type: Type.STRING },
+                borrowerProfile: { type: Type.STRING },
+                promoterAnalysis: { type: Type.STRING },
+                financialEvaluation: { type: Type.STRING },
+                bankingBehavior: { type: Type.STRING },
+                legalComplianceFindings: { type: Type.STRING },
+                industryAnalysis: { type: Type.STRING },
+                collateralAssessment: { type: Type.STRING },
+                verificationSummary: { type: Type.STRING },
+                keyRisks: { type: Type.ARRAY, items: { type: Type.STRING } },
+                finalRecommendation: { type: Type.STRING },
+              },
+              required: [
+                "executiveSummary", "borrowerProfile", "promoterAnalysis", "financialEvaluation",
+                "bankingBehavior", "legalComplianceFindings", "industryAnalysis", "collateralAssessment",
+                "verificationSummary", "keyRisks", "finalRecommendation"
+              ],
+            },
+            explanation: { type: Type.STRING },
+            recommendation: { type: Type.STRING },
+            decisionConfidence: { type: Type.NUMBER },
+            suggestedLoanAmount: { type: Type.STRING },
+            suggestedInterestRate: { type: Type.STRING },
+            riskGrade: { type: Type.STRING },
             missingData: {
               type: Type.ARRAY,
               items: { type: Type.STRING }
@@ -188,43 +452,100 @@ export default function App() {
               items: { type: Type.STRING }
             }
           },
-          required: ["companyInfo", "structuredData", "verificationLayer", "riskAnalysisDetails", "missingData", "requiredDocs"],
+          required: [
+            "companyInfo", "structuredData", "unstructuredInsights", "externalIntelligence",
+            "primaryInsights", "verificationLayer", "riskAnalysisDetails", "fiveCs", "camReport",
+            "explanation", "recommendation", "decisionConfidence", "suggestedLoanAmount",
+            "suggestedInterestRate", "riskGrade", "missingData", "requiredDocs"
+          ],
         },
       };
 
-      let extractionResponse;
+      let currentContents: any[] = [];
 
       if (file.type === "application/pdf") {
         const base64Data = await fileToBase64(file);
-        extractionResponse = await genAI.models.generateContent({
-          model,
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  data: base64Data,
-                  mimeType: "application/pdf",
-                },
+        currentContents.push({
+          role: "user",
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: "application/pdf",
               },
-              {
-                text: extractionPrompt,
-              },
-            ],
-          },
-          config,
+            },
+            {
+              text: extractionPrompt,
+            },
+          ],
         });
       } else {
         const text = await fileToText(file);
+        currentContents.push({
+          role: "user",
+          parts: [
+            {
+              text: `${extractionPrompt}\n\nDocument Text:\n${text.substring(0, 10000)}`,
+            },
+          ],
+        });
+      }
+
+      let extractionResponse = await genAI.models.generateContent({
+        model,
+        contents: currentContents,
+        config,
+      });
+
+      let iterations = 0;
+      while (extractionResponse.functionCalls && extractionResponse.functionCalls.length > 0 && iterations < 3) {
+        const call = extractionResponse.functionCalls[0];
+        
+        let toolResult;
+        if (call.name === "search_cases") {
+          toolResult = await callMcpTool(call.name, call.args);
+        } else if (call.name === "get_mca_info") {
+          try {
+            const res = await fetch("/resource/4dbe5667-7b6b-41d7-82af-211562424d9a", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ companyName: call.args.companyName })
+            });
+            if (res.ok) {
+              toolResult = await res.json();
+            } else {
+              const getRes = await fetch(`/resource/4dbe5667-7b6b-41d7-82af-211562424d9a?companyName=${encodeURIComponent(call.args.companyName as string)}`);
+              if (getRes.ok) {
+                toolResult = await getRes.json();
+              } else {
+                toolResult = { error: `Failed to fetch MCA info: ${getRes.status}` };
+              }
+            }
+          } catch (e) {
+            toolResult = { error: "Failed to fetch MCA info" };
+          }
+        } else {
+          toolResult = { error: "Unknown tool" };
+        }
+        
+        currentContents.push(extractionResponse.candidates![0].content);
+        currentContents.push({
+          role: "user",
+          parts: [{
+            functionResponse: {
+              name: call.name,
+              response: { result: toolResult }
+            }
+          }]
+        });
+        
         extractionResponse = await genAI.models.generateContent({
           model,
-          contents: `
-            ${extractionPrompt}
-            
-            Document Text:
-            ${text.substring(0, 10000)}
-          `,
+          contents: currentContents,
           config,
         });
+        
+        iterations++;
       }
 
       if (!extractionResponse.text) {
@@ -232,17 +553,11 @@ export default function App() {
       }
 
       const parsedData = JSON.parse(extractionResponse.text);
-      const companyInfo = parsedData.companyInfo;
-      const structuredData = parsedData.structuredData;
-      const verificationLayer = parsedData.verificationLayer;
-      const riskAnalysisDetails = parsedData.riskAnalysisDetails;
-      const missingData = parsedData.missingData;
-      const requiredDocs = parsedData.requiredDocs;
-
+      
       // Feature Calculations
-      const debtToIncome = structuredData.revenue > 0 ? structuredData.debt / structuredData.revenue : 1;
-      const profitMargin = structuredData.revenue > 0 ? structuredData.profit / structuredData.revenue : 0;
-      const currentRatio = structuredData.liabilities > 0 ? structuredData.assets / structuredData.liabilities : 1;
+      const debtToIncome = parsedData.structuredData.revenue > 0 ? parsedData.structuredData.debt / parsedData.structuredData.revenue : 1;
+      const profitMargin = parsedData.structuredData.revenue > 0 ? parsedData.structuredData.profit / parsedData.structuredData.revenue : 0;
+      const currentRatio = parsedData.structuredData.liabilities > 0 ? parsedData.structuredData.assets / parsedData.structuredData.liabilities : 1;
 
       // Risk Scoring (Rule-based + Verification Penalty)
       let riskScore = 50; // Base score
@@ -250,11 +565,11 @@ export default function App() {
       if (debtToIncome > 0.8) riskScore += 15;
       if (profitMargin < 0.1) riskScore += 10;
       if (currentRatio < 1.2) riskScore += 10;
-      if (structuredData.cashflow < 0) riskScore += 15;
+      if (parsedData.structuredData.cashflow < 0) riskScore += 15;
       
       // Penalize for unverified or mismatched data
-      const unverifiedCount = verificationLayer.filter((v: any) => v.status === 'Unverified').length;
-      const mismatchCount = verificationLayer.filter((v: any) => v.status === 'Mismatch').length;
+      const unverifiedCount = parsedData.verificationLayer.filter((v: any) => v.status === 'Unverified').length;
+      const mismatchCount = parsedData.verificationLayer.filter((v: any) => v.status === 'Mismatch').length;
       riskScore += (unverifiedCount * 5);
       riskScore += (mismatchCount * 15);
       
@@ -265,83 +580,31 @@ export default function App() {
       if (riskScore > 60) riskLevel = "High";
       if (riskScore > 85) riskLevel = "Critical";
 
-      // Calculate overall decision confidence based on verification scores
-      const avgConfidence = verificationLayer.length > 0 
-        ? verificationLayer.reduce((acc: number, curr: any) => acc + curr.confidenceScore, 0) / verificationLayer.length 
-        : 50;
-      const decisionConfidence = Math.round(avgConfidence - (mismatchCount * 10));
-
       // Fraud Detection (Simple Anomaly Rules)
       const fraudFlags = [];
-      if (structuredData.revenue > 0 && structuredData.profit > structuredData.revenue) {
+      if (parsedData.structuredData.revenue > 0 && parsedData.structuredData.profit > parsedData.structuredData.revenue) {
         fraudFlags.push("Profit exceeds revenue (Impossible state)");
       }
-      if (structuredData.debt > structuredData.assets * 2) {
+      if (parsedData.structuredData.debt > parsedData.structuredData.assets * 2) {
         fraudFlags.push("Extreme leverage detected");
       }
-      if (structuredData.cashflow === 0 && structuredData.revenue > 1000000) {
+      if (parsedData.structuredData.cashflow === 0 && parsedData.structuredData.revenue > 1000000) {
         fraudFlags.push("Suspiciously zero cashflow for high revenue");
       }
       if (mismatchCount > 0) {
         fraudFlags.push(`${mismatchCount} data mismatch(es) detected during verification`);
       }
 
-      // Explanation Generation
-      const explanationPrompt = `
-        As a senior credit analyst, explain the credit risk for a business with the following data:
-        - Revenue: ${structuredData.revenue}
-        - Debt: ${structuredData.debt}
-        - Profit: ${structuredData.profit}
-        - Risk Score: ${riskScore}/100 (${riskLevel})
-        - Decision Confidence: ${decisionConfidence}%
-        - Unverified Points: ${unverifiedCount}
-        - Mismatches: ${mismatchCount}
-        - Fraud Flags: ${fraudFlags.join(", ") || "None"}
-        
-        Provide a concise, professional explanation and a final recommendation (Approve/Deny/Review).
-        Format the response as a JSON object with 'explanation' and 'recommendation' keys.
-      `;
-
-      const explanationResponse = await genAI.models.generateContent({
-        model,
-        contents: explanationPrompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              explanation: { type: Type.STRING },
-              recommendation: { type: Type.STRING },
-            },
-            required: ["explanation", "recommendation"],
-          },
-        },
-      });
-
-      if (!explanationResponse.text) {
-        throw new Error("Failed to generate explanation");
-      }
-
-      const { explanation, recommendation } = JSON.parse(explanationResponse.text);
-
       setAnalysis({
-        companyInfo,
-        structuredData,
-        verificationLayer,
-        riskAnalysisDetails,
+        ...parsedData,
         ratios: {
           debtToIncome,
           profitMargin,
-          currentRatio,
+          currentRatio
         },
         riskScore,
         riskLevel,
-        fraudFlags,
-        explanation,
-        recommendation,
-        decisionConfidence,
-        missingData,
-        requiredDocs
+        fraudFlags
       });
     } catch (err) {
       console.error(err);
@@ -467,10 +730,11 @@ export default function App() {
                 </div>
               </div>
 
-               {/* Risk Score Panel */}
+              {/* Risk Score Panel */}
                <div className="border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col justify-between">
-                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2">
-                  System Risk Score
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex justify-between">
+                  <span>Risk Grade</span>
+                  <span className="text-amber-500">{analysis.riskGrade}</span>
                 </div>
                 <div className="flex items-end justify-between">
                   <div className={`text-5xl font-light ${
@@ -491,24 +755,66 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Confidence Panel */}
+              {/* Decision Panel */}
               <div className="border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col justify-between">
                 <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2">
-                  Decision Confidence
+                  Loan Recommendation
                 </div>
                 <div className="flex items-end justify-between">
-                  <div className={`text-5xl font-light ${
-                    analysis.decisionConfidence >= 80 ? 'text-emerald-500' :
-                    analysis.decisionConfidence >= 50 ? 'text-amber-500' : 'text-rose-500'
+                  <div className={`text-3xl font-light ${
+                    analysis.recommendation.includes('Approve') ? 'text-emerald-500' :
+                    analysis.recommendation.includes('Reject') ? 'text-rose-500' : 'text-amber-500'
                   }`}>
-                    {analysis.decisionConfidence}%
+                    {analysis.suggestedLoanAmount}
                   </div>
                   <div className="text-right">
-                    <div className="text-zinc-400 text-xs uppercase">Verification</div>
-                    <div className="text-zinc-500 text-xs">DATA INTEGRITY</div>
+                    <div className="text-zinc-400 text-xs uppercase">Rate: {analysis.suggestedInterestRate}</div>
+                    <div className="text-zinc-500 text-xs uppercase tracking-tighter">Confidence: {analysis.decisionConfidence}%</div>
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 5 Cs Analysis Row */}
+            <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-5 gap-2">
+              {[
+                { label: 'Character', data: analysis.fiveCs.character, icon: Fingerprint, color: 'text-blue-400' },
+                { label: 'Capacity', data: analysis.fiveCs.capacity, icon: Activity, color: 'text-emerald-400' },
+                { label: 'Capital', data: analysis.fiveCs.capital, icon: Landmark, color: 'text-amber-400' },
+                { label: 'Collateral', data: analysis.fiveCs.collateral, icon: ShieldCheck, color: 'text-purple-400' },
+                { label: 'Conditions', data: analysis.fiveCs.conditions, icon: Globe, color: 'text-cyan-400' },
+              ].map((c, i) => (
+                <div key={i} className="border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col">
+                  <div className="text-[10px] uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex justify-between items-center">
+                    <div className="flex items-center gap-1">
+                      <c.icon className={`w-3 h-3 ${c.color}`} />
+                      <span>{c.label}</span>
+                    </div>
+                    <span className={c.color}>{c.data.score}%</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 max-h-40">
+                    <div className="text-[10px] text-zinc-400 leading-tight mb-2 italic">
+                      {c.data.insights[0]}
+                    </div>
+                    {c.data.positiveSignals.length > 0 && (
+                      <div className="mb-2">
+                        <div className="text-[9px] text-emerald-500 uppercase mb-0.5">Signals</div>
+                        <ul className="text-[9px] text-zinc-500 space-y-0.5">
+                          {c.data.positiveSignals.slice(0, 2).map((s, j) => <li key={j} className="flex gap-1"><span>+</span>{s}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {c.data.redFlags.length > 0 && (
+                      <div>
+                        <div className="text-[9px] text-rose-500 uppercase mb-0.5">Flags</div>
+                        <ul className="text-[9px] text-zinc-500 space-y-0.5">
+                          {c.data.redFlags.slice(0, 2).map((f, j) => <li key={j} className="flex gap-1"><span>!</span>{f}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Middle Row: Financials & Verification */}
@@ -607,6 +913,83 @@ export default function App() {
                   </table>
                 </div>
               </div>
+            </div>
+
+            {/* Intelligence Row: External, Unstructured, Primary */}
+            <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-2">
+              
+              {/* External Intelligence */}
+              <div className="lg:col-span-1 border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col max-h-80">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex items-center gap-2 shrink-0">
+                  <Globe className="w-3 h-3 text-cyan-500" />
+                  <span>External Intelligence (Live Web)</span>
+                </div>
+                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">MCA Status</div>
+                    <div className="text-xs text-zinc-300">{analysis.externalIntelligence.mcaStatus}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">Legal Disputes (e-Courts)</div>
+                    <ul className="list-disc list-inside text-xs text-zinc-300 space-y-0.5">
+                      {analysis.externalIntelligence.legalDisputes.map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">News & Sector Trends</div>
+                    <ul className="list-disc list-inside text-xs text-zinc-300 space-y-0.5">
+                      {analysis.externalIntelligence.newsSectorTrends.map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Unstructured Insights */}
+              <div className="lg:col-span-1 border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col max-h-80">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex items-center gap-2 shrink-0">
+                  <FileSearch className="w-3 h-3 text-amber-500" />
+                  <span>Unstructured Insights</span>
+                </div>
+                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">Rating Agency Reports</div>
+                    <div className="text-xs text-zinc-300">{analysis.unstructuredInsights.ratingAgencyReports}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">Shareholding Pattern</div>
+                    <div className="text-xs text-zinc-300">{analysis.unstructuredInsights.shareholdingPattern}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">Board Meeting Notes</div>
+                    <ul className="list-disc list-inside text-xs text-zinc-300 space-y-0.5">
+                      {analysis.unstructuredInsights.boardMeetingNotes.map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* Primary Insights */}
+              <div className="lg:col-span-1 border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col max-h-80">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex items-center gap-2 shrink-0">
+                  <Briefcase className="w-3 h-3 text-emerald-500" />
+                  <span>Primary Insights (Due Diligence)</span>
+                </div>
+                <div className="space-y-3 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">Site Visit Observations</div>
+                    <ul className="list-disc list-inside text-xs text-zinc-300 space-y-0.5">
+                      {analysis.primaryInsights.siteVisitObservations.map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-zinc-500 uppercase mb-1">Management Interviews</div>
+                    <ul className="list-disc list-inside text-xs text-zinc-300 space-y-0.5">
+                      {analysis.primaryInsights.managementInterviews.map((item, i) => <li key={i}>{item}</li>)}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
             </div>
 
             {/* Bottom Row: Risk Dimensions & Actions */}
@@ -712,6 +1095,27 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {/* CAM Report Section */}
+            <div id="cam-report" className="lg:col-span-12 border border-zinc-800 bg-[#0a0a0a] p-4">
+              <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-2 mb-4 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <FileDown className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-bold tracking-widest">Credit Appraisal Memo (CAM)</span>
+                </div>
+                <button 
+                  onClick={downloadPDF}
+                  disabled={isExporting}
+                  className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 px-3 py-1 text-[10px] transition-colors disabled:opacity-50"
+                >
+                  <Download className="w-3 h-3" /> {isExporting ? 'EXPORTING...' : 'EXPORT PDF'}
+                </button>
+              </div>
+
+              <div className="prose prose-invert prose-sm max-w-none prose-headings:text-amber-500 prose-headings:uppercase prose-headings:tracking-widest prose-a:text-cyan-400 prose-strong:text-zinc-200">
+                <Markdown>{analysis.camMarkdown}</Markdown>
+              </div>
+            </div>
 
             <div className="lg:col-span-12 flex justify-end mt-4">
               <button

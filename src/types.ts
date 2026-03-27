@@ -15,6 +15,23 @@ export interface CompanyInfo {
   employees: string | number;
 }
 
+export interface UnstructuredInsights {
+  boardMeetingNotes: string[];
+  ratingAgencyReports: string;
+  shareholdingPattern: string;
+}
+
+export interface ExternalIntelligence {
+  mcaStatus: string;
+  legalDisputes: string[];
+  newsSectorTrends: string[];
+}
+
+export interface PrimaryInsights {
+  siteVisitObservations: string[];
+  managementInterviews: string[];
+}
+
 export interface VerificationDataPoint {
   category: string;
   dataPoint: string;
@@ -32,10 +49,62 @@ export interface RiskAnalysisDetails {
   managementRisk: string;
 }
 
+export interface FiveCsAnalysis {
+  character: {
+    score: number;
+    insights: string[];
+    redFlags: string[];
+    positiveSignals: string[];
+  };
+  capacity: {
+    score: number;
+    insights: string[];
+    redFlags: string[];
+    positiveSignals: string[];
+  };
+  capital: {
+    score: number;
+    insights: string[];
+    redFlags: string[];
+    positiveSignals: string[];
+  };
+  collateral: {
+    score: number;
+    insights: string[];
+    redFlags: string[];
+    positiveSignals: string[];
+  };
+  conditions: {
+    score: number;
+    insights: string[];
+    redFlags: string[];
+    positiveSignals: string[];
+  };
+}
+
+export interface CAMReport {
+  executiveSummary: string;
+  borrowerProfile: string;
+  promoterAnalysis: string;
+  financialEvaluation: string;
+  bankingBehavior: string;
+  legalComplianceFindings: string;
+  industryAnalysis: string;
+  collateralAssessment: string;
+  verificationSummary: string;
+  keyRisks: string[];
+  finalRecommendation: string;
+}
+
 export interface CreditAnalysis {
   companyInfo: CompanyInfo;
   structuredData: FinancialData;
+  unstructuredInsights: UnstructuredInsights;
+  externalIntelligence: ExternalIntelligence;
+  primaryInsights: PrimaryInsights;
   verificationLayer: VerificationDataPoint[];
+  fiveCs: FiveCsAnalysis;
+  camMarkdown: string;
   riskAnalysisDetails: RiskAnalysisDetails;
   ratios: {
     debtToIncome: number;
@@ -48,6 +117,9 @@ export interface CreditAnalysis {
   explanation: string;
   recommendation: string;
   decisionConfidence: number;
+  suggestedLoanAmount: string;
+  suggestedInterestRate: string;
+  riskGrade: string;
   missingData: string[];
   requiredDocs: string[];
 }
