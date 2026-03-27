@@ -1,10 +1,15 @@
+export interface YearlyData {
+  year: string;
+  value: number;
+}
+
 export interface FinancialData {
-  revenue: number;
-  debt: number;
-  cashflow: number;
-  profit: number;
-  assets: number;
-  liabilities: number;
+  revenue: YearlyData[];
+  debt: YearlyData[];
+  cashflow: YearlyData[];
+  profit: YearlyData[];
+  assets: YearlyData[];
+  liabilities: YearlyData[];
 }
 
 export interface CompanyInfo {
@@ -49,6 +54,14 @@ export interface RiskAnalysisDetails {
   managementRisk: string;
 }
 
+export interface CollateralAsset {
+  type: string;
+  marketValue: number;
+  estimatedValue: number;
+  ltvRatio: number;
+  remarks: string;
+}
+
 export interface FiveCsAnalysis {
   character: {
     score: number;
@@ -73,6 +86,7 @@ export interface FiveCsAnalysis {
     insights: string[];
     redFlags: string[];
     positiveSignals: string[];
+    assets?: CollateralAsset[];
   };
   conditions: {
     score: number;
@@ -96,6 +110,45 @@ export interface CAMReport {
   finalRecommendation: string;
 }
 
+export interface FraudDetectionCheck {
+  category: string;
+  indicator: string;
+  status: 'Pass' | 'Fail' | 'Warning';
+  details: string;
+  evidence?: string;
+}
+
+export interface ShellIndicator {
+  name: string;
+  status: 'Pass' | 'Fail' | 'Warning';
+  details: string;
+  evidence: string;
+}
+
+export interface ShellCompanyAnalysis {
+  employeeCount: number;
+  officeType: string;
+  operationalEvidence: string[];
+  isPotentialShell: boolean;
+  riskLevel: 'Low' | 'Medium' | 'High';
+  indicators: ShellIndicator[];
+}
+
+export interface HistoryEvent {
+  date: string;
+  type: string;
+  description: string;
+  reason: string;
+  evidence: string;
+}
+
+export interface DirectorShareholderHistory {
+  events: HistoryEvent[];
+  summary: string;
+  hasRapidChanges: boolean;
+  riskLevel: 'Low' | 'Medium' | 'High';
+}
+
 export interface CreditAnalysis {
   companyInfo: CompanyInfo;
   structuredData: FinancialData;
@@ -106,10 +159,15 @@ export interface CreditAnalysis {
   fiveCs: FiveCsAnalysis;
   camMarkdown: string;
   riskAnalysisDetails: RiskAnalysisDetails;
+  fraudDetection: FraudDetectionCheck[];
+  shellCompanyAnalysis?: ShellCompanyAnalysis;
+  directorShareholderHistory?: DirectorShareholderHistory;
   ratios: {
     debtToIncome: number;
     profitMargin: number;
     currentRatio: number;
+    dscr?: number;
+    icr?: number;
   };
   riskScore: number; // 0-100
   riskLevel: 'Low' | 'Medium' | 'High' | 'Critical';
