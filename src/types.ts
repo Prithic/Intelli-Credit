@@ -7,6 +7,14 @@ export interface FinancialData {
   liabilities: number;
 }
 
+export interface CompanyInfo {
+  name: string;
+  establishedYear: string | number;
+  industry: string;
+  registrationNumber: string;
+  employees: string | number;
+}
+
 export interface VerificationDataPoint {
   category: string;
   dataPoint: string;
@@ -25,6 +33,7 @@ export interface RiskAnalysisDetails {
 }
 
 export interface CreditAnalysis {
+  companyInfo: CompanyInfo;
   structuredData: FinancialData;
   verificationLayer: VerificationDataPoint[];
   riskAnalysisDetails: RiskAnalysisDetails;

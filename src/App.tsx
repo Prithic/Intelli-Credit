@@ -6,6 +6,9 @@ import {
   FileText, 
   Upload, 
   TrendingUp, 
+  TrendingDown,
+  Activity,
+  Users,
   AlertTriangle, 
   CheckCircle2, 
   XCircle,
@@ -98,7 +101,7 @@ export default function App() {
         You are an AI-powered Credit Appraisal & Verification System that performs independent data verification before risk analysis, replicating real-world banking due diligence.
         
         1. Data Extraction Layer:
-        Extract financial figures from the provided document. If a figure is not found, estimate it based on context or return 0.
+        Extract company profile information and financial figures from the provided document. If a figure is not found, estimate it based on context or return 0. If text info is not found, return "Unknown".
         
         2. Data Verification & Trust Engine (SIMULATED):
         For every extracted data point, SIMULATE independent verification using external authoritative sources based on the document's realism, consistency, and formatting.
@@ -114,6 +117,7 @@ export default function App() {
         Perform multi-dimensional risk analysis (Financial, Legal, Behavioral, Industry, Management) ONLY AFTER verification.
         
         Return a JSON object matching the provided schema exactly. Include:
+        - companyInfo: name, establishedYear, industry, registrationNumber, employees
         - structuredData: revenue, debt, cashflow, profit, assets, liabilities
         - verificationLayer: Array of verification points (category, dataPoint, status: 'Verified' | 'Unverified' | 'Mismatch', confidenceScore: 0-100, source, notes)
         - riskAnalysisDetails: financialRisk, legalRisk, behavioralRisk, industryRisk, managementRisk
@@ -126,6 +130,17 @@ export default function App() {
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            companyInfo: {
+              type: Type.OBJECT,
+              properties: {
+                name: { type: Type.STRING },
+                establishedYear: { type: Type.STRING },
+                industry: { type: Type.STRING },
+                registrationNumber: { type: Type.STRING },
+                employees: { type: Type.STRING },
+              },
+              required: ["name", "establishedYear", "industry", "registrationNumber", "employees"],
+            },
             structuredData: {
               type: Type.OBJECT,
               properties: {
@@ -173,7 +188,7 @@ export default function App() {
               items: { type: Type.STRING }
             }
           },
-          required: ["structuredData", "verificationLayer", "riskAnalysisDetails", "missingData", "requiredDocs"],
+          required: ["companyInfo", "structuredData", "verificationLayer", "riskAnalysisDetails", "missingData", "requiredDocs"],
         },
       };
 
@@ -217,6 +232,7 @@ export default function App() {
       }
 
       const parsedData = JSON.parse(extractionResponse.text);
+      const companyInfo = parsedData.companyInfo;
       const structuredData = parsedData.structuredData;
       const verificationLayer = parsedData.verificationLayer;
       const riskAnalysisDetails = parsedData.riskAnalysisDetails;
@@ -309,6 +325,7 @@ export default function App() {
       const { explanation, recommendation } = JSON.parse(explanationResponse.text);
 
       setAnalysis({
+        companyInfo,
         structuredData,
         verificationLayer,
         riskAnalysisDetails,
@@ -352,405 +369,361 @@ export default function App() {
   ] : [];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-100">
+    <div className="min-h-screen bg-black text-zinc-300 font-mono text-xs sm:text-sm selection:bg-amber-500/30">
       {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-              <ShieldCheck className="text-white w-5 h-5" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">Intelli-Credit</h1>
+      <header className="bg-[#050505] border-b border-zinc-800 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="bg-amber-500 text-black px-2 py-0.5 font-bold tracking-widest uppercase text-xs">
+            INTELLI-CREDIT
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-xs font-medium px-2 py-1 bg-slate-100 text-slate-500 rounded uppercase tracking-wider">v1.0 Beta</span>
-          </div>
+          <span className="text-zinc-500 uppercase tracking-widest text-xs">Terminal v2.4.1</span>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-zinc-500 uppercase">
+          <span className="flex items-center gap-1"><ShieldCheck className="w-3 h-3 text-emerald-500" /> SECURE</span>
+          <span>{new Date().toISOString().split('T')[0]}</span>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* Left Column: Upload & Controls */}
-          <div className="lg:col-span-4 space-y-6">
-            <section className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <Upload className="w-5 h-5 text-indigo-600" />
-                Document Upload
-              </h2>
-              
-              <div 
-                {...getRootProps()} 
-                className={cn(
-                  "border-2 border-dashed rounded-xl p-8 transition-all cursor-pointer text-center",
-                  isDragActive ? "border-indigo-500 bg-indigo-50" : "border-slate-200 hover:border-indigo-400 hover:bg-slate-50",
-                  file ? "border-indigo-200 bg-indigo-50/30" : ""
-                )}
+      <main className="p-2 sm:p-4 max-w-[1600px] mx-auto">
+        {!analysis ? (
+          <div className="border border-zinc-800 bg-[#0a0a0a] p-8 flex flex-col items-center justify-center min-h-[60vh]">
+            <div className="text-amber-500 mb-4 animate-pulse">
+              <Upload className="w-12 h-12" />
+            </div>
+            <h2 className="text-xl text-zinc-100 uppercase tracking-widest mb-2">Initialize Data Ingestion</h2>
+            <p className="text-zinc-500 mb-8 text-center max-w-md">
+              Upload financial documents (PDF, Image) for automated extraction, verification, and risk analysis.
+            </p>
+            
+            <div
+              {...getRootProps()}
+              className={`w-full max-w-2xl border-2 border-dashed p-12 text-center cursor-pointer transition-colors ${
+                isDragActive ? 'border-amber-500 bg-amber-500/5' : 'border-zinc-800 hover:border-zinc-600 bg-black'
+              }`}
+            >
+              <input {...getInputProps()} />
+              {loading ? (
+                <div className="flex flex-col items-center gap-4">
+                  <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+                  <p className="text-amber-500 uppercase tracking-widest animate-pulse">Processing & Verifying Data...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <FileText className="w-8 h-8 text-zinc-600 mb-2" />
+                  <p className="text-zinc-400 uppercase tracking-wider">Drag & drop files here, or click to select</p>
+                  <p className="text-zinc-600 text-xs mt-2">Supported: PDF, JPEG, PNG</p>
+                </div>
+              )}
+            </div>
+            
+            {file && !loading && (
+              <button
+                onClick={handleAnalyze}
+                className="mt-6 border border-amber-500 bg-amber-500/10 text-amber-500 hover:bg-amber-500 hover:text-black px-8 py-3 uppercase tracking-widest font-bold transition-colors flex items-center gap-2"
               >
-                <input {...getInputProps()} />
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-12 h-12 bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center">
-                    <FileText className={cn("w-6 h-6", file ? "text-indigo-600" : "text-slate-400")} />
+                <TrendingUp className="w-5 h-5" />
+                Execute Analysis
+              </button>
+            )}
+
+            {error && (
+              <div className="mt-6 border border-rose-900 bg-rose-950/30 text-rose-500 px-4 py-3 flex items-center gap-2 w-full max-w-2xl">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <p className="text-sm">{error}</p>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2">
+            
+            {/* Top Row: Company Profile & Core Stats */}
+            <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-4 gap-2">
+              {/* Company Info Panel */}
+              <div className="lg:col-span-2 border border-zinc-800 bg-[#0a0a0a] p-3">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex justify-between">
+                  <span>Company Profile</span>
+                  <span className="text-cyan-400">ID: {analysis.companyInfo.registrationNumber}</span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl text-zinc-100 uppercase tracking-wider mb-1 truncate">
+                  {analysis.companyInfo.name}
+                </h1>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mt-3">
+                  <div className="flex justify-between border-b border-zinc-800/50 py-1">
+                    <span className="text-zinc-500">ESTABLISHED</span>
+                    <span className="text-amber-500">{analysis.companyInfo.establishedYear}</span>
                   </div>
-                  {file ? (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-slate-900 truncate max-w-[200px]">{file.name}</p>
-                      <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(1)} KB</p>
+                  <div className="flex justify-between border-b border-zinc-800/50 py-1">
+                    <span className="text-zinc-500">INDUSTRY</span>
+                    <span className="text-amber-500 truncate ml-2 text-right">{analysis.companyInfo.industry}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-zinc-800/50 py-1">
+                    <span className="text-zinc-500">EMPLOYEES</span>
+                    <span className="text-amber-500">{analysis.companyInfo.employees}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-zinc-800/50 py-1">
+                    <span className="text-zinc-500">STATUS</span>
+                    <span className="text-emerald-500">ACTIVE</span>
+                  </div>
+                </div>
+              </div>
+
+               {/* Risk Score Panel */}
+               <div className="border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col justify-between">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2">
+                  System Risk Score
+                </div>
+                <div className="flex items-end justify-between">
+                  <div className={`text-5xl font-light ${
+                    analysis.riskScore >= 70 ? 'text-emerald-500' :
+                    analysis.riskScore >= 40 ? 'text-amber-500' : 'text-rose-500'
+                  }`}>
+                    {analysis.riskScore}
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-lg uppercase tracking-widest ${
+                      analysis.riskLevel === 'Low' ? 'text-emerald-500' :
+                      analysis.riskLevel === 'Medium' ? 'text-amber-500' : 'text-rose-500'
+                    }`}>
+                      {analysis.riskLevel} RISK
                     </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-slate-900">Click or drag to upload</p>
-                      <p className="text-xs text-slate-500">PDF, CSV, or JSON</p>
+                    <div className="text-zinc-500 text-xs">OUT OF 100</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Confidence Panel */}
+              <div className="border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col justify-between">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2">
+                  Decision Confidence
+                </div>
+                <div className="flex items-end justify-between">
+                  <div className={`text-5xl font-light ${
+                    analysis.decisionConfidence >= 80 ? 'text-emerald-500' :
+                    analysis.decisionConfidence >= 50 ? 'text-amber-500' : 'text-rose-500'
+                  }`}>
+                    {analysis.decisionConfidence}%
+                  </div>
+                  <div className="text-right">
+                    <div className="text-zinc-400 text-xs uppercase">Verification</div>
+                    <div className="text-zinc-500 text-xs">DATA INTEGRITY</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Middle Row: Financials & Verification */}
+            <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-2">
+              
+              {/* Financial Data */}
+              <div className="lg:col-span-1 border border-zinc-800 bg-[#0a0a0a] p-3">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex justify-between">
+                  <span>Financial Metrics</span>
+                  <span className="text-zinc-600">INR (₹)</span>
+                </div>
+                <div className="space-y-1">
+                  {[
+                    { label: 'Revenue', value: analysis.structuredData.revenue, color: 'text-emerald-400' },
+                    { label: 'Profit', value: analysis.structuredData.profit, color: 'text-emerald-400' },
+                    { label: 'Cashflow', value: analysis.structuredData.cashflow, color: 'text-cyan-400' },
+                    { label: 'Assets', value: analysis.structuredData.assets, color: 'text-zinc-300' },
+                    { label: 'Liabilities', value: analysis.structuredData.liabilities, color: 'text-amber-500' },
+                    { label: 'Debt', value: analysis.structuredData.debt, color: 'text-rose-400' },
+                  ].map((item, i) => (
+                    <div key={i} className="flex justify-between items-center border-b border-zinc-800/50 py-1.5 hover:bg-zinc-900/50">
+                      <span className="text-zinc-400 uppercase text-xs">{item.label}</span>
+                      <span className={`text-sm ${item.color}`}>
+                        ₹{item.value.toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mt-4 mb-2">
+                  Key Ratios
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-black border border-zinc-800 p-2">
+                    <div className="text-zinc-500 text-[10px] uppercase mb-1">DTI</div>
+                    <div className={`text-sm ${analysis.ratios.debtToIncome > 0.5 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                      {(analysis.ratios.debtToIncome * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="bg-black border border-zinc-800 p-2">
+                    <div className="text-zinc-500 text-[10px] uppercase mb-1">Margin</div>
+                    <div className={`text-sm ${analysis.ratios.profitMargin < 0.1 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                      {(analysis.ratios.profitMargin * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                  <div className="bg-black border border-zinc-800 p-2">
+                    <div className="text-zinc-500 text-[10px] uppercase mb-1">Current</div>
+                    <div className={`text-sm ${analysis.ratios.currentRatio < 1 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                      {analysis.ratios.currentRatio.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Verification Engine Table */}
+              <div className="lg:col-span-2 border border-zinc-800 bg-[#0a0a0a] p-3 flex flex-col">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex items-center gap-2">
+                  <Search className="w-3 h-3 text-cyan-500" />
+                  <span>Trust Engine Verification Log</span>
+                </div>
+                <div className="overflow-x-auto flex-1">
+                  <table className="w-full text-left text-xs">
+                    <thead className="text-zinc-500 border-b border-zinc-800">
+                      <tr>
+                        <th className="pb-2 font-normal uppercase">Category</th>
+                        <th className="pb-2 font-normal uppercase">Data Point</th>
+                        <th className="pb-2 font-normal uppercase">Source</th>
+                        <th className="pb-2 font-normal uppercase">Status</th>
+                        <th className="pb-2 font-normal uppercase text-right">Conf</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-800/50">
+                      {analysis.verificationLayer.map((item, index) => (
+                        <tr key={index} className="hover:bg-zinc-900/30 transition-colors">
+                          <td className="py-2 text-zinc-400">{item.category}</td>
+                          <td className="py-2 text-zinc-300">{item.dataPoint}</td>
+                          <td className="py-2 text-zinc-500">{item.source}</td>
+                          <td className="py-2">
+                            <span className={`px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${
+                              item.status === 'Verified' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' :
+                              item.status === 'Mismatch' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
+                              'bg-amber-500/10 text-amber-500 border border-amber-500/20'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className={`py-2 text-right ${
+                            item.confidenceScore >= 80 ? 'text-emerald-500' :
+                            item.confidenceScore >= 50 ? 'text-amber-500' : 'text-rose-500'
+                          }`}>
+                            {item.confidenceScore}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Row: Risk Dimensions & Actions */}
+            <div className="lg:col-span-12 grid grid-cols-1 lg:grid-cols-3 gap-2">
+              
+              {/* Risk Dimensions */}
+              <div className="lg:col-span-2 border border-zinc-800 bg-[#0a0a0a] p-3">
+                <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-3">
+                  Risk Dimensions Analysis
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { label: 'Financial Risk', value: analysis.riskAnalysisDetails.financialRisk, icon: TrendingDown },
+                    { label: 'Legal Risk', value: analysis.riskAnalysisDetails.legalRisk, icon: Scale },
+                    { label: 'Behavioral Risk', value: analysis.riskAnalysisDetails.behavioralRisk, icon: Activity },
+                    { label: 'Industry Risk', value: analysis.riskAnalysisDetails.industryRisk, icon: Building2 },
+                    { label: 'Management Risk', value: analysis.riskAnalysisDetails.managementRisk, icon: Users },
+                  ].map((dim, i) => (
+                    <div key={i} className="flex gap-3 items-start">
+                      <div className="mt-0.5 p-1.5 bg-zinc-900 border border-zinc-800 text-zinc-400">
+                        <dim.icon className="w-3 h-3" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-zinc-500 uppercase mb-0.5">{dim.label}</div>
+                        <div className="text-xs text-zinc-300 leading-relaxed">{dim.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Required & Recommendation */}
+              <div className="lg:col-span-1 flex flex-col gap-2">
+                <div className="border border-zinc-800 bg-[#0a0a0a] p-3 flex-1">
+                  <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800 pb-1 mb-2 flex items-center gap-2">
+                    <FileWarning className="w-3 h-3 text-amber-500" />
+                    <span>Action Required</span>
+                  </div>
+                  
+                  {analysis.missingData.length > 0 && (
+                    <div className="mb-3">
+                      <div className="text-[10px] text-rose-400 uppercase mb-1">Missing Critical Data</div>
+                      <ul className="list-disc list-inside text-xs text-zinc-400 space-y-0.5">
+                        {analysis.missingData.map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analysis.requiredDocs.length > 0 && (
+                    <div>
+                      <div className="text-[10px] text-amber-400 uppercase mb-1">Required Documents</div>
+                      <ul className="list-disc list-inside text-xs text-zinc-400 space-y-0.5">
+                        {analysis.requiredDocs.map((item, i) => <li key={i}>{item}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {analysis.missingData.length === 0 && analysis.requiredDocs.length === 0 && (
+                    <div className="text-xs text-emerald-500 flex items-center gap-2 mt-2">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>All required data present.</span>
                     </div>
                   )}
                 </div>
+
+                <div className={`border p-3 ${
+                  analysis.recommendation.includes('Approve') ? 'border-emerald-900 bg-emerald-950/20' :
+                  analysis.recommendation.includes('Reject') ? 'border-rose-900 bg-rose-950/20' :
+                  'border-amber-900 bg-amber-950/20'
+                }`}>
+                  <div className="text-xs uppercase text-zinc-500 border-b border-zinc-800/50 pb-1 mb-2">
+                    Final Recommendation
+                  </div>
+                  <div className={`text-lg uppercase tracking-wider mb-2 ${
+                    analysis.recommendation.includes('Approve') ? 'text-emerald-500' :
+                    analysis.recommendation.includes('Reject') ? 'text-rose-500' :
+                    'text-amber-500'
+                  }`}>
+                    {analysis.recommendation}
+                  </div>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    {analysis.explanation}
+                  </p>
+                </div>
               </div>
 
+            </div>
+
+            {/* Fraud Flags */}
+            {analysis.fraudFlags.length > 0 && (
+              <div className="lg:col-span-12 border border-rose-900 bg-rose-950/10 p-3 mt-2">
+                <div className="text-xs uppercase text-rose-500 border-b border-rose-900/50 pb-1 mb-2 flex items-center gap-2">
+                  <AlertTriangle className="w-3 h-3" />
+                  <span>Critical Risk Flags Detected</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {analysis.fraudFlags.map((flag, index) => (
+                    <div key={index} className="flex items-start gap-2 text-xs text-rose-400 bg-rose-950/30 p-2 border border-rose-900/50">
+                      <span className="text-rose-500 font-bold">!</span>
+                      <span>{flag}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="lg:col-span-12 flex justify-end mt-4">
               <button
-                onClick={handleAnalyze}
-                disabled={!file || loading}
-                className={cn(
-                  "w-full mt-6 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-200/50",
-                  !file || loading 
-                    ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none" 
-                    : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-[0.98]"
-                )}
+                onClick={() => setAnalysis(null)}
+                className="border border-zinc-700 hover:border-zinc-500 bg-black text-zinc-400 hover:text-zinc-200 px-6 py-2 text-xs uppercase tracking-widest transition-colors"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="w-5 h-5" />
-                    Run Risk Analysis
-                  </>
-                )}
+                [ Reset Terminal ]
               </button>
-
-              {error && (
-                <div className="mt-4 p-3 bg-rose-50 border border-rose-100 rounded-lg flex items-start gap-2 text-rose-600 text-sm">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <p>{error}</p>
-                </div>
-              )}
-            </section>
-
-            <section className="bg-slate-900 rounded-2xl p-6 text-white overflow-hidden relative">
-              <div className="relative z-10">
-                <h3 className="text-sm font-bold uppercase tracking-widest text-indigo-400 mb-2">System Status</h3>
-                <p className="text-2xl font-light leading-tight">AI Engine is active and ready for processing.</p>
-                <div className="mt-6 flex items-center gap-4">
-                  <div className="flex -space-x-2">
-                    {[1,2,3].map(i => (
-                      <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-bold">
-                        {i === 1 ? 'OCR' : i === 2 ? 'ML' : 'NLP'}
-                      </div>
-                    ))}
-                  </div>
-                  <span className="text-xs text-slate-400">All modules online</span>
-                </div>
-              </div>
-              <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-indigo-600/20 rounded-full blur-3xl" />
-            </section>
+            </div>
           </div>
-
-          {/* Right Column: Results */}
-          <div className="lg:col-span-8">
-            <AnimatePresence mode="wait">
-              {analysis ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="space-y-8"
-                >
-                  {/* Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Risk Score</p>
-                      <div className="flex items-end justify-between">
-                        <h4 className="text-4xl font-bold text-slate-900">{analysis.riskScore}</h4>
-                        <span className={cn("text-xs font-bold px-2 py-1 rounded-full border", getRiskColor(analysis.riskLevel))}>
-                          {analysis.riskLevel}
-                        </span>
-                      </div>
-                      <div className="mt-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={cn("h-full transition-all duration-1000", 
-                            analysis.riskScore < 30 ? "bg-emerald-500" : 
-                            analysis.riskScore < 60 ? "bg-amber-500" : "bg-rose-500"
-                          )}
-                          style={{ width: `${analysis.riskScore}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Recommendation</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {analysis.recommendation.toLowerCase().includes('approve') ? (
-                          <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                        ) : analysis.recommendation.toLowerCase().includes('deny') ? (
-                          <XCircle className="w-6 h-6 text-rose-500" />
-                        ) : (
-                          <Info className="w-6 h-6 text-amber-500" />
-                        )}
-                        <h4 className="text-xl font-bold text-slate-900">{analysis.recommendation}</h4>
-                      </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Decision Confidence</p>
-                      <div className="flex items-end justify-between mt-2">
-                        <h4 className="text-4xl font-bold text-slate-900">{analysis.decisionConfidence}%</h4>
-                        <ShieldCheck className={cn("w-6 h-6", analysis.decisionConfidence > 80 ? "text-emerald-500" : analysis.decisionConfidence > 50 ? "text-amber-500" : "text-rose-500")} />
-                      </div>
-                      <div className="mt-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                        <div 
-                          className={cn("h-full transition-all duration-1000", 
-                            analysis.decisionConfidence > 80 ? "bg-emerald-500" : 
-                            analysis.decisionConfidence > 50 ? "bg-amber-500" : "bg-rose-500"
-                          )}
-                          style={{ width: `${analysis.decisionConfidence}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fraud Detection</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {analysis.fraudFlags.length > 0 ? (
-                          <>
-                            <ShieldAlert className="w-6 h-6 text-rose-500" />
-                            <h4 className="text-xl font-bold text-slate-900">{analysis.fraudFlags.length} Flags</h4>
-                          </>
-                        ) : (
-                          <>
-                            <ShieldCheck className="w-6 h-6 text-emerald-500" />
-                            <h4 className="text-xl font-bold text-slate-900">Clear</h4>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Verification & Trust Engine Layer */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                        <Search className="w-4 h-4 text-indigo-600" />
-                        Data Verification & Trust Engine
-                      </h3>
-                      <span className="text-xs font-medium px-2 py-1 bg-indigo-100 text-indigo-700 rounded uppercase tracking-wider">Independent Validation</span>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-slate-500 bg-white border-b border-slate-200 uppercase">
-                          <tr>
-                            <th className="px-6 py-4 font-medium">Category</th>
-                            <th className="px-6 py-4 font-medium">Data Point</th>
-                            <th className="px-6 py-4 font-medium">Status</th>
-                            <th className="px-6 py-4 font-medium">Confidence</th>
-                            <th className="px-6 py-4 font-medium">Source</th>
-                            <th className="px-6 py-4 font-medium">Notes</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {analysis.verificationLayer.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-4 font-medium text-slate-900">{item.category}</td>
-                              <td className="px-6 py-4 text-slate-600">{item.dataPoint}</td>
-                              <td className="px-6 py-4">
-                                <span className={cn(
-                                  "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border",
-                                  item.status === 'Verified' ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
-                                  item.status === 'Mismatch' ? "bg-rose-50 text-rose-700 border-rose-200" :
-                                  "bg-amber-50 text-amber-700 border-amber-200"
-                                )}>
-                                  {item.status === 'Verified' && <CheckCircle2 className="w-3.5 h-3.5" />}
-                                  {item.status === 'Mismatch' && <XCircle className="w-3.5 h-3.5" />}
-                                  {item.status === 'Unverified' && <AlertTriangle className="w-3.5 h-3.5" />}
-                                  {item.status}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div 
-                                      className={cn("h-full", item.confidenceScore > 80 ? "bg-emerald-500" : item.confidenceScore > 50 ? "bg-amber-500" : "bg-rose-500")}
-                                      style={{ width: `${item.confidenceScore}%` }}
-                                    />
-                                  </div>
-                                  <span className="text-xs font-medium text-slate-600">{item.confidenceScore}%</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-slate-500 text-xs">{item.source}</td>
-                              <td className="px-6 py-4 text-slate-600 text-xs max-w-xs truncate" title={item.notes}>{item.notes}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {/* Multi-Dimensional Risk Analysis */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-6 flex items-center gap-2">
-                        <Scale className="w-4 h-4 text-indigo-600" />
-                        Risk Dimensions
-                      </h3>
-                      <div className="space-y-4">
-                        {[
-                          { label: 'Financial Risk', value: analysis.riskAnalysisDetails.financialRisk, icon: Landmark },
-                          { label: 'Legal Risk', value: analysis.riskAnalysisDetails.legalRisk, icon: Scale },
-                          { label: 'Behavioral Risk', value: analysis.riskAnalysisDetails.behavioralRisk, icon: TrendingUp },
-                          { label: 'Industry Risk', value: analysis.riskAnalysisDetails.industryRisk, icon: Building2 },
-                          { label: 'Management Risk', value: analysis.riskAnalysisDetails.managementRisk, icon: ShieldCheck },
-                        ].map((risk, i) => {
-                          const Icon = risk.icon;
-                          const isHigh = risk.value.toLowerCase().includes('high') || risk.value.toLowerCase().includes('critical');
-                          const isLow = risk.value.toLowerCase().includes('low');
-                          return (
-                            <div key={i} className="flex items-start gap-4 p-3 rounded-xl border border-slate-100 bg-slate-50/50">
-                              <div className={cn("p-2 rounded-lg", isHigh ? "bg-rose-100 text-rose-600" : isLow ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600")}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                              <div>
-                                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{risk.label}</h4>
-                                <p className="text-sm text-slate-600 mt-1">{risk.value}</p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="space-y-8">
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-6 flex items-center gap-2">
-                          <BarChart3 className="w-4 h-4 text-indigo-600" />
-                          Financial Overview
-                        </h3>
-                        <div className="h-[200px] w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData}>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} />
-                              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748B' }} />
-                              <Tooltip 
-                                cursor={{ fill: '#F8FAFC' }}
-                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                              />
-                              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                                {chartData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#4F46E5' : '#94A3B8'} />
-                                ))}
-                              </Bar>
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      {/* Missing Data & Required Docs */}
-                      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                        <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                          <FileWarning className="w-4 h-4 text-indigo-600" />
-                          Action Required
-                        </h3>
-                        
-                        {analysis.missingData.length > 0 || analysis.requiredDocs.length > 0 ? (
-                          <div className="space-y-4">
-                            {analysis.missingData.length > 0 && (
-                              <div>
-                                <p className="text-xs font-bold text-rose-500 uppercase tracking-wider mb-2">Missing Critical Data</p>
-                                <ul className="space-y-1">
-                                  {analysis.missingData.map((item, i) => (
-                                    <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
-                                      <span className="text-rose-500 mt-0.5">•</span> {item}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                            {analysis.requiredDocs.length > 0 && (
-                              <div>
-                                <p className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-2">Required Documents</p>
-                                <ul className="space-y-1">
-                                  {analysis.requiredDocs.map((item, i) => (
-                                    <li key={i} className="text-sm text-slate-600 flex items-start gap-2">
-                                      <span className="text-amber-500 mt-0.5">•</span> {item}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 p-3 rounded-lg">
-                            <CheckCircle2 className="w-5 h-5" />
-                            <span className="text-sm font-medium">All critical data and documents present.</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* AI Explanation */}
-                  <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-                    <div className="relative z-10">
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                        AI Analysis Explanation
-                      </h3>
-                      <p className="text-slate-600 leading-relaxed text-lg italic font-serif">
-                        "{analysis.explanation}"
-                      </p>
-                      
-                      {analysis.fraudFlags.length > 0 && (
-                        <div className="mt-8 p-4 bg-rose-50 border border-rose-100 rounded-xl">
-                          <p className="text-xs font-bold text-rose-600 uppercase tracking-widest mb-2">Anomaly Alerts</p>
-                          <ul className="space-y-2">
-                            {analysis.fraudFlags.map((flag, i) => (
-                              <li key={i} className="text-sm text-rose-700 flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4 shrink-0" />
-                                {flag}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                    <div className="absolute top-0 right-0 p-4 opacity-[0.03]">
-                      <ShieldCheck className="w-32 h-32 text-slate-900" />
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center py-20 bg-white rounded-3xl border border-slate-100 border-dashed">
-                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                    <BarChart3 className="w-10 h-10 text-slate-300" />
-                  </div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">No Analysis Data</h3>
-                  <p className="text-slate-500 max-w-sm">Upload a financial document to generate a comprehensive credit risk report.</p>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
+        )}
       </main>
-
-      <footer className="max-w-7xl mx-auto px-4 py-12 border-t border-slate-200 mt-12">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-slate-400">© 2026 Intelli-Credit. AI-Powered Financial Intelligence.</p>
-          <div className="flex gap-6">
-            <a href="#" className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-indigo-600 transition-colors">Terms of Service</a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
